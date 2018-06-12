@@ -10,7 +10,7 @@ Functional highlights:
 
 To use:
 * Change the configurables based on your network and wiring to LEDs.
-* Flash to the board and load the Bootstrap file from /data into SPIFFS (it just serves a reference if it's connected to an AP, but serves the JS from SPIFFS if it's on its broadcasting its own)
+* Flash to the board and load the Bootstrap file from /data into SPIFFS (it just serves a reference if it's connected to an AP, but serves the CSS from SPIFFS if it's broadcasting its own)
 * When it connects, either use the Serial readout or it flashes LEDs (red = 100s place, yellow = 10s, green = 1s) to give you the last octet of the IP. All LEDs on = SoftAP mode, IP=192.168.4.1
 * Pull the page up in a browser (tested in Chrome & Safari mobile)
 * If needed, you can change the timezone offset or manually reset the clock (if it's connected to a network without NTP access, like its own) at the bottom
