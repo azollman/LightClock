@@ -20,8 +20,6 @@
 #include <Time.h>
 #include <TimeLib.h>
 
-#include <FS.h>
-
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
@@ -87,11 +85,6 @@ void setcolor(int led) {
 }
 void renderPage() {
   String s = MAIN_page;
-  if (wifiMode == MODE_WIFI_AP) { 
-    s.replace("@@BOOTSTRAP@@","/bootstrap.min.css"); 
-  } else {
-    s.replace("@@BOOTSTRAP@@","https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css");
-  }
   switch (currentLED) {
     case MODE_OFF:
       s.replace("@@CURRENTCOLOR@@","");
@@ -178,13 +171,8 @@ void alarm() {
   renderPage();
 }
 void renderbootstrap() {
-  File f = SPIFFS.open("/bootstrap.min.css", "r");
-  if (f) {
-    server.streamFile(f,"text/css");
-    f.close();
-  } else {
-    Serial.println("file open failed");
-  }
+  Serial.println("Sending Bootstrap.");
+server.send(200,"text/css",BOOTSTRAP_css);
 }
 void setup() {
   pinMode(PIN_SETUP, INPUT_PULLUP);
@@ -195,9 +183,6 @@ void setup() {
   Serial.begin(115200);
 
   Serial.print("Starting...\n");
-if (SPIFFS.begin()) {
-  Serial.println("SPIFFS FS mounted.");
-}
   setcolor(MODE_OFF);
   if (digitalRead(PIN_SETUP) == 1) {
     setupWiFiSTA();
@@ -209,7 +194,7 @@ if (SPIFFS.begin()) {
   server.on("/manual", manual);
   server.on("/alarm", alarm);
   server.on("/time", timeset);
-  server.on("/bootstrap.min.css", renderbootstrap);
+  server.on("/style.css", renderbootstrap);
   server.begin();
 }
 int lastts = 0;
