@@ -20,8 +20,6 @@
 #include <Time.h>
 #include <TimeLib.h>
 
-#include <FS.h>
-
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
@@ -87,11 +85,6 @@ void setcolor(int led) {
 }
 void renderPage() {
   String s = MAIN_page;
-  if (wifiMode == MODE_WIFI_AP) { 
-    s.replace("@@BOOTSTRAP@@","/bootstrap.min.css"); 
-  } else {
-    s.replace("@@BOOTSTRAP@@","https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css");
-  }
   switch (currentLED) {
     case MODE_OFF:
       s.replace("@@CURRENTCOLOR@@","");
@@ -142,7 +135,6 @@ void timeset() {
   renderPage();
 }
 void manual() {
-  int led;
   if (server.arg("m") == "RED") {
     clockMode = MODE_RED;
     setcolor(clockMode);
@@ -178,13 +170,8 @@ void alarm() {
   renderPage();
 }
 void renderbootstrap() {
-  File f = SPIFFS.open("/bootstrap.min.css", "r");
-  if (f) {
-    server.streamFile(f,"text/css");
-    f.close();
-  } else {
-    Serial.println("file open failed");
-  }
+server.sendHeader("Cache-Control","max-age=86400");
+server.send_P(200,"text/css",BOOTSTRAP_css);
 }
 void setup() {
   pinMode(PIN_SETUP, INPUT_PULLUP);
@@ -195,13 +182,9 @@ void setup() {
   Serial.begin(115200);
 
   Serial.print("Starting...\n");
-if (SPIFFS.begin()) {
-  Serial.println("SPIFFS FS mounted.");
-}
   setcolor(MODE_OFF);
   if (digitalRead(PIN_SETUP) == 1) {
     setupWiFiSTA();
-    setupTime();
   } else {
     setupWiFiAP();
   }
@@ -209,24 +192,20 @@ if (SPIFFS.begin()) {
   server.on("/manual", manual);
   server.on("/alarm", alarm);
   server.on("/time", timeset);
-  server.on("/bootstrap.min.css", renderbootstrap);
+  server.on("/style.css", renderbootstrap);
   server.begin();
 }
 int lastts = 0;
 void loop() {
   int ts = hour() * 60 * 60 + minute() * 60 + second();
   server.handleClient();
+
   if (lastts != ts) {
     lastts = ts;
     Serial.print("Now: ");
     Serial.print(hour());
     Serial.print(":");
     Serial.print(minute());
-    /*if (minute() % 3 == 0) {
-      digitalWrite(LED_GREEN,0);
-      } else {
-      digitalWrite(LED_GREEN,1);
-      }*/
     Serial.print(":");
     Serial.print(second());
     Serial.print(" (");
@@ -243,7 +222,7 @@ void loop() {
 }
 
 void setupWiFiAP() {
-  WiFi.softAP(WIFI_AP_SSID,WIFI_PSK);
+  WiFi.softAP(WIFI_AP_SSID);
   Serial.print("AP Mode. IP: ");
   Serial.println(WiFi.softAPIP());
   wifiMode = MODE_WIFI_AP;
@@ -266,13 +245,11 @@ void setupWiFiSTA() {
     Serial.println(WiFi.localIP());
     wifiMode = MODE_WIFI_STA;
     FlashLastOctet(WiFi.localIP());
+    setupTime();
   } else { //Couldn't connect to WIFI_SSID, instantiating local AP
     Serial.println();
     setupWiFiAP();
-    
-    digitalWrite(pins[MODE_RED], LAMP_ON);
-    digitalWrite(pins[MODE_YELLOW], LAMP_ON);
-    digitalWrite(pins[MODE_GREEN], LAMP_ON);
+    setcolor(MODE_ON);
   }
 }
 
