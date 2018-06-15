@@ -1,5 +1,37 @@
 #define FLASH_LENGTH 500
 #define FLASH_DELAY 1000
+
+void setupWiFiAP() {
+  WiFi.softAP(WIFI_AP_SSID);
+  Serial.print("AP Mode (");
+  Serial.print(String(WIFI_AP_SSID));
+  Serial.print(") IP: ");
+  Serial.println(WiFi.softAPIP());
+  setcolor(MODE_ON);
+}
+void setupWiFi() {
+  WiFi.mode(WIFI_STA);
+  eeprom_load_wifi();
+  WiFi.begin(eeprom_ssid(), eeprom_psk());
+  Serial.print("Connecting to ");
+  Serial.print(eeprom_ssid());
+  int clicks = 0;
+  while (WiFi.status() != WL_CONNECTED && clicks<20) {
+    clicks++;
+    delay(500);
+    Serial.print(".");
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("\nConnected. IP: ");
+    Serial.println(WiFi.localIP());
+    FlashLastOctet(WiFi.localIP());
+    setupTime();
+  } else { //Couldn't connect to WIFI_SSID, instantiating local AP
+    Serial.println();
+    setupWiFiAP();
+  }
+}
+
 void FlashLastOctet(IPAddress IP) {
   int lastoctet = IP[3];
   Serial.print("Flashing IP: ");
@@ -32,20 +64,4 @@ void FlashLastOctet(IPAddress IP) {
     setcolor(MODE_OFF);
     delay(FLASH_LENGTH);
   }
-}
-String getValue(String data, char separator, int index)
-{
-  int found = 0;
-  int strIndex[] = {0, -1};
-  int maxIndex = data.length()-1;
-
-  for(int i=0; i<=maxIndex && found<=index; i++){
-    if(data.charAt(i)==separator || i==maxIndex){
-        found++;
-        strIndex[0] = strIndex[1]+1;
-        strIndex[1] = (i == maxIndex) ? i+1 : i;
-    }
-  }
-
-  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
