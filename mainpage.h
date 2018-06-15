@@ -95,6 +95,15 @@ function dumpTS() {
 </div>
 </form>
 
+<form method="post" action="/wifi">
+<div class="well text-center">
+<h3>WiFi Configuration</h3>
+<p><input type="text" id="ssid" name="ssid" value="@@SSID@@" placeholder="SSID"></p>
+<p><input type="password" id="psk" name="psk"></p>
+<p><input type="submit" name="m" value="Connect" class="btn btn-med btn-default"></p>
+</div>
+</form>
+
 </body>
 </html>
 )=====";

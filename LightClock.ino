@@ -1,6 +1,3 @@
-
-#define WIFI_SSID "YOUR_SSID" //SSID for default AP connection
-#define WIFI_PSK "YOUR_PSK" //PSK to use for both AP-connected and SoftAP
 #define WIFI_AP_SSID "LightClock" //SSID to use when Clock is its own AP
 
 #define TZOFFSET -5 //Default Offset. Can be adjusted through UI.
@@ -26,9 +23,6 @@
 
 
 //Internal state assignment modes. No need to touch.
-#define MODE_WIFI_STA 0
-#define MODE_WIFI_AP 1
-#define MODE_SETUP 255
 #define MODE_OFF 0
 #define MODE_RED 1
 #define MODE_YELLOW 2
@@ -41,7 +35,6 @@ int tzOffset = TZOFFSET;
 int alarmTime = 999999;
 int clockMode;
 int currentLED;
-int wifiMode;
 int pins[4] = {0, PIN_RED, PIN_YELLOW, PIN_GREEN};
 
 ESP8266WebServer server (80);
@@ -119,6 +112,7 @@ void renderPage() {
   s.replace("@@ALARM@@", String(alarmTime));
   s.replace("@@RESPONSE@@", String(clockMode));
   s.replace("@@TZOFFSET@@", String(tzOffset));
+  s.replace("@@SSID@@", String(eeprom_ssid()));
   server.send(200, "text/html", s);
 }
 void timeset() {
@@ -133,6 +127,10 @@ void timeset() {
   setSyncInterval(99999999);
   }
   renderPage();
+}
+void savewifi() {
+  eeprom_save_wifi(server.arg("ssid"),server.arg("psk"));
+  setupWiFi();
 }
 void manual() {
   if (server.arg("m") == "RED") {
@@ -184,12 +182,13 @@ void setup() {
   Serial.print("Starting...\n");
   setcolor(MODE_OFF);
   if (digitalRead(PIN_SETUP) == 1) {
-    setupWiFiSTA();
+    setupWiFi();
   } else {
     setupWiFiAP();
   }
   server.on("/", renderPage);
   server.on("/manual", manual);
+  server.on("/wifi", savewifi);
   server.on("/alarm", alarm);
   server.on("/time", timeset);
   server.on("/style.css", renderbootstrap);
@@ -215,41 +214,6 @@ void loop() {
     if (ts == alarmTime) {
       setcolor(MODE_GREEN);
     }
-  }
-
-
-
-}
-
-void setupWiFiAP() {
-  WiFi.softAP(WIFI_AP_SSID);
-  Serial.print("AP Mode. IP: ");
-  Serial.println(WiFi.softAPIP());
-  wifiMode = MODE_WIFI_AP;
-}
-void setupWiFiSTA() {
-  WiFi.mode(WIFI_STA);
-  char * ssid = WIFI_SSID;
-  char * psk = WIFI_PSK;
-  WiFi.begin(ssid, psk);
-  Serial.print("Connecting to ");
-  Serial.print(WIFI_SSID);
-  int clicks = 0;
-  while (WiFi.status() != WL_CONNECTED && clicks<20) {
-    clicks++;
-    delay(500);
-    Serial.print(".");
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.print("\nConnected. IP: ");
-    Serial.println(WiFi.localIP());
-    wifiMode = MODE_WIFI_STA;
-    FlashLastOctet(WiFi.localIP());
-    setupTime();
-  } else { //Couldn't connect to WIFI_SSID, instantiating local AP
-    Serial.println();
-    setupWiFiAP();
-    setcolor(MODE_ON);
   }
 }
 
