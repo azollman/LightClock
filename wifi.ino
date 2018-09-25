@@ -2,6 +2,7 @@
 #define FLASH_DELAY 1000
 
 void setupWiFiAP() {
+  WiFi.disconnect(); //Must disconnect first (even though not connected) to avoid channel hopping - https://github.com/esp8266/Arduino/issues/1624
   WiFi.softAP(WIFI_AP_SSID);
   Serial.print("AP Mode (");
   Serial.print(String(WIFI_AP_SSID));

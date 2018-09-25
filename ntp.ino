@@ -27,7 +27,7 @@ time_t getNtpTime()
          unsigned long lowWord = word(packetBuffer[42], packetBuffer[43]);
          unsigned long secSince1900 = highWord << 16 | lowWord;
          udp.flush();
-         return secSince1900 - 2208988800UL + tzOffset * SECS_PER_HOUR;
+         return secSince1900 - 2208988800UL + eeprom_tzOffset() * SECS_PER_HOUR;
       }
       delay(10);
     }
@@ -40,13 +40,14 @@ void sendNTPpacket(WiFiUDP *u) {
   memset(packetBuffer, 0, NTP_PACKET_SIZE);
   memcpy(packetBuffer, sendBuffer, 16);
 
-  if (u->beginPacket("216.229.0.50", 123)) {
+  if (u->beginPacket("pool.ntp.org", 123)) {
     u->write(packetBuffer, NTP_PACKET_SIZE);
     u->endPacket();
   }
 }
 
 void setupTime() {
+  eeprom_load_tz();
   setSyncProvider(getNtpTime);
   setSyncInterval(6000);
 }

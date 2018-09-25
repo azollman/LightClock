@@ -1,17 +1,17 @@
 #define WIFI_AP_SSID "LightClock" //SSID to use when Clock is its own AP
 
-#define TZOFFSET -5 //Default Offset. Can be adjusted through UI.
-
-#define ALARM_RED 0 //0 = Alarm clock turns green at time, off otherwise. 1 = Alarm is red until turns green.
-
 #define PIN_RED D5
 #define PIN_YELLOW D6
 #define PIN_GREEN D7
 #define PIN_SETUP D1
 
-//Configure for active low (LAMP_ON = 1, LAMP_OFF = 0) or active high (LAMP_ON = 1, LAMP_OFF = 0)
-#define LAMP_ON 0
-#define LAMP_OFF 1
+//PWM Configurations to control brightness (depending on LEDs and resistors) as well as configure active-low vs active-high
+#define PWM_RANGE 100
+#define PWM_OFF 100
+#define PWM_RED 98
+#define PWM_YELLOW 90
+#define PWM_GREEN 0
+
 //-------------END OF CONFIGURABLES-------------------------------------------------
 #include "mainpage.h"
 #include <Time.h>
@@ -30,79 +30,65 @@
 #define MODE_TIMER 100
 #define MODE_ON 254
 
-int tzOffset = TZOFFSET;
-
 int alarmTime = 999999;
 int clockMode;
 int currentLED;
-int pins[4] = {0, PIN_RED, PIN_YELLOW, PIN_GREEN};
 
 ESP8266WebServer server (80);
 
 void setcolor(int led) {
+  currentLED = led;
+  analogWrite(PIN_RED, PWM_OFF);
+  analogWrite(PIN_YELLOW, PWM_OFF);
+  analogWrite(PIN_GREEN, PWM_OFF);
   if (led == MODE_RED) {
     Serial.print("RED\n");
-    currentLED = MODE_RED;
-    digitalWrite(pins[MODE_RED], LAMP_ON);
-    digitalWrite(pins[MODE_YELLOW], LAMP_OFF);
-    digitalWrite(pins[MODE_GREEN], LAMP_OFF);
-  }
-  if (led == MODE_GREEN) {
+    analogWrite(PIN_RED, PWM_RED);
+  } else if (led == MODE_GREEN) {
     Serial.print("GREEN\n");
-    currentLED = MODE_GREEN;
-    digitalWrite(pins[MODE_RED], LAMP_OFF);
-    digitalWrite(pins[MODE_YELLOW], LAMP_OFF);
-    digitalWrite(pins[MODE_GREEN], LAMP_ON);
-  }
-  if (led == MODE_YELLOW) {
+    analogWrite(PIN_GREEN, PWM_GREEN);
+  } else if (led == MODE_YELLOW) {
     Serial.print("YELLOW\n");
-    currentLED = MODE_YELLOW;
-    digitalWrite(pins[MODE_RED], LAMP_OFF);
-    digitalWrite(pins[MODE_YELLOW], LAMP_ON);
-    digitalWrite(pins[MODE_GREEN], LAMP_OFF);
-  }
-  if (led == MODE_OFF) {
+    analogWrite(PIN_YELLOW, PWM_YELLOW);
+  } else if (led == MODE_OFF) {
     Serial.print("OFF\n");
+  } else if (led == MODE_ON) {
     currentLED = MODE_OFF;
-    digitalWrite(pins[MODE_RED], LAMP_OFF);
-    digitalWrite(pins[MODE_YELLOW], LAMP_OFF);
-    digitalWrite(pins[MODE_GREEN], LAMP_OFF);
-  }
-  if (led == MODE_ON) {
     Serial.print("ON\n");
-    digitalWrite(pins[MODE_RED], LAMP_ON);
-    digitalWrite(pins[MODE_YELLOW], LAMP_ON);
-    digitalWrite(pins[MODE_GREEN], LAMP_ON);
+    analogWrite(PIN_RED, PWM_RED);
+    analogWrite(PIN_YELLOW, PWM_YELLOW);
+    analogWrite(PIN_GREEN, PWM_GREEN);
   }
-
+}
+void redirect() {
+  server.sendHeader("Location", String("/"), true);
+  server.send(302, "text/plain", "");
 }
 void renderPage() {
   String s = MAIN_page;
-  switch (currentLED) {
-    case MODE_OFF:
-      s.replace("@@CURRENTCOLOR@@","");
-      break;
-    case MODE_RED:  
-      s.replace("@@CURRENTCOLOR@@","alert alert-danger");
-      break;
-    case MODE_YELLOW:  
-      s.replace("@@CURRENTCOLOR@@","alert alert-warning");
-      break;
-    case MODE_GREEN:  
-      s.replace("@@CURRENTCOLOR@@","alert alert-success");
-      break;
+  if (currentLED == MODE_OFF && clockMode == MODE_TIMER) {
+    s.replace("@@CURRENTCOLOR@@", "alert alert-dark text-center");
+  } else if (currentLED == MODE_RED) {
+    s.replace("@@CURRENTCOLOR@@", "alert alert-danger text-center");
+  } else if (currentLED == MODE_YELLOW) {
+    s.replace("@@CURRENTCOLOR@@", "alert alert-warning text-center");
+  } else if (currentLED == MODE_GREEN) {
+    s.replace("@@CURRENTCOLOR@@", "alert alert-success text-center");
+  } else {
+    s.replace("@@CURRENTCOLOR@@", "");
   }
+
   switch (clockMode) {
     case MODE_OFF:
-      s.replace("@@CURRENT@@","");
+      s.replace("@@CURRENT@@", "");
       break;
     case MODE_TIMER:
-      s.replace("@@CURRENT@@",String(alarmTime));
+      s.replace("@@CURRENT@@", String(alarmTime));
       break;
     default:
-      s.replace("@@CURRENT@@","999999");
+      s.replace("@@CURRENT@@", "999999");
   }
-  
+
   s.replace("@@YEAR@@", String(year()));
   s.replace("@@MONTH@@", String(month()));
   s.replace("@@DAY@@", String(day()));
@@ -111,25 +97,25 @@ void renderPage() {
   s.replace("@@SECOND@@", String(second()));
   s.replace("@@ALARM@@", String(alarmTime));
   s.replace("@@RESPONSE@@", String(clockMode));
-  s.replace("@@TZOFFSET@@", String(tzOffset));
+  s.replace("@@TZOFFSET@@", String(eeprom_tzOffset()));
   s.replace("@@SSID@@", String(eeprom_ssid()));
   server.send(200, "text/html", s);
 }
 void timeset() {
   if (server.arg("set") == "Set TZ") {
-  tzOffset = server.arg("offset").toInt();
-  setupTime();
-  Serial.print("Set TZ offset to: ");
-  Serial.println(String(tzOffset));
-  } else{
-  Serial.println("Manually set time from client.");
-  setTime(server.arg("hour").toInt(), server.arg("minute").toInt(), server.arg("second").toInt(), server.arg("day").toInt(), server.arg("month").toInt(), server.arg("year").toInt());
-  setSyncInterval(99999999);
+    eeprom_save_tz(short(server.arg("offset").toInt()));
+    setupTime();
+    Serial.print("Set TZ offset to: ");
+    Serial.println(String(eeprom_tzOffset()));
+  } else {
+    Serial.println("Manually set time from client.");
+    setTime(server.arg("hour").toInt(), server.arg("minute").toInt(), server.arg("second").toInt(), server.arg("day").toInt(), server.arg("month").toInt(), server.arg("year").toInt());
+    setSyncInterval(99999999);
   }
-  renderPage();
+  redirect();
 }
 void savewifi() {
-  eeprom_save_wifi(server.arg("ssid"),server.arg("psk"));
+  eeprom_save_wifi(server.arg("ssid"), server.arg("psk"));
   setupWiFi();
 }
 void manual() {
@@ -153,30 +139,30 @@ void manual() {
     clockMode = MODE_ON;
     setcolor(MODE_ON);
   }
-  renderPage();
+  redirect();
 }
 void alarm() {
   clockMode = MODE_TIMER;
-  if (ALARM_RED) {
+  if (server.arg("redlight") == "on") {
     setcolor(MODE_RED);
   } else {
-   setcolor(MODE_OFF);
-}
+    setcolor(MODE_OFF);
+  }
   alarmTime = server.arg("alarm").toInt();
   Serial.print("Alarm set for: ");
   Serial.println(alarmTime);
-  renderPage();
+  redirect();
 }
 void renderbootstrap() {
-server.sendHeader("Cache-Control","max-age=86400");
-server.send_P(200,"text/css",BOOTSTRAP_css);
+  server.sendHeader("Cache-Control", "max-age=86400");
+  server.send_P(200, "text/css", BOOTSTRAP_css);
 }
 void setup() {
   pinMode(PIN_SETUP, INPUT_PULLUP);
-  pinMode(pins[MODE_RED], OUTPUT);
-  pinMode(pins[MODE_YELLOW], OUTPUT);
-  pinMode(pins[MODE_GREEN], OUTPUT);
-
+  pinMode(PIN_RED, OUTPUT);
+  pinMode(PIN_YELLOW, OUTPUT);
+  pinMode(PIN_GREEN, OUTPUT);
+  analogWriteRange(PWM_RANGE);
   Serial.begin(115200);
 
   Serial.print("Starting...\n");
@@ -211,7 +197,7 @@ void loop() {
     Serial.print(ts);
     Serial.print(")");
     Serial.print("\n");
-    if (ts == alarmTime) {
+    if (ts == alarmTime && clockMode == MODE_TIMER) {
       setcolor(MODE_GREEN);
     }
   }
