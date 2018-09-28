@@ -75,7 +75,7 @@ void renderPage() {
   } else if (currentLED == MODE_GREEN) {
     s.replace("@@CURRENTCOLOR@@", "alert alert-success text-center");
   } else {
-    s.replace("@@CURRENTCOLOR@@", "");
+    s.replace("@@CURRENTCOLOR@@", "hidden");
   }
 
   switch (clockMode) {
@@ -83,10 +83,11 @@ void renderPage() {
       s.replace("@@CURRENT@@", "");
       break;
     case MODE_TIMER:
-      s.replace("@@CURRENT@@", String(alarmTime));
+      //s.replace("@@CURRENT@@", String(alarmTime));
+      s.replace("@@CURRENT@@",renderTime(alarmTime));
       break;
     default:
-      s.replace("@@CURRENT@@", "999999");
+      s.replace("@@CURRENT@@", "&nbsp;");
   }
 
   s.replace("@@YEAR@@", String(year()));
@@ -95,7 +96,7 @@ void renderPage() {
   s.replace("@@HOUR@@", String(hour()));
   s.replace("@@MINUTE@@", String(minute()));
   s.replace("@@SECOND@@", String(second()));
-  s.replace("@@ALARM@@", String(alarmTime));
+  s.replace("@@ALARM@@", renderTime(alarmTime));
   s.replace("@@RESPONSE@@", String(clockMode));
   s.replace("@@TZOFFSET@@", String(eeprom_tzOffset()));
   s.replace("@@SSID@@", String(eeprom_ssid()));
@@ -141,6 +142,8 @@ void manual() {
   }
   redirect();
 }
+
+
 void alarm() {
   clockMode = MODE_TIMER;
   if (server.arg("redlight") == "on") {
@@ -148,7 +151,10 @@ void alarm() {
   } else {
     setcolor(MODE_OFF);
   }
-  alarmTime = server.arg("alarm").toInt();
+  alarmTime = getChunk(server.arg("alarm"),':',0).toInt()*60*60 + getChunk(server.arg("alarm"),':',1).toInt()*60;
+  String seconds = getChunk(server.arg("alarm"),':',2);
+  if (seconds != "") alarmTime += seconds.toInt();
+ // alarmTime = server.arg("alarm").toInt();
   Serial.print("Alarm set for: ");
   Serial.println(alarmTime);
   redirect();
